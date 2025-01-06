@@ -1,42 +1,43 @@
 import os
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import pickle
 
-# Function to apply K-means clustering
-def create_kmeans_model(data):
-    # Separate the features (X) and drop unnecessary columns
+# Function to train a KNN model
+def create_knn_model(data):
+    # Separate the features (X) and target variable (y)
     X = data.drop(['id', 'diagnosis'], axis=1)
+    y = data['diagnosis']
 
     # Handle missing values using mean imputation
     imputer = SimpleImputer(strategy='mean')
     X_imputed = imputer.fit_transform(X)
 
-    # Standardize the features for better clustering performance
+    # Standardize the features for better model performance
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_imputed)
 
-    # Apply PCA for dimensionality reduction
-    pca = PCA(n_components=10)  # Retain 10 principal components
-    X_pca = pca.fit_transform(X_scaled)
+    # Split the data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-    # Apply K-means clustering
-    kmeans = KMeans(
-        n_clusters=2,                 # Choose 2 clusters (e.g., benign vs malignant as a reference)
-        random_state=42,              # Seed for reproducibility
-        n_init=10                     # Number of initializations for the algorithm
-    )
-    kmeans.fit(X_pca)
+    # Initialize and train the KNN classifier
+    knn = KNeighborsClassifier(n_neighbors=5)  # Use 5 neighbors by default
+    knn.fit(X_train, y_train)
 
-    # Evaluate the clustering using silhouette score
-    silhouette_avg = silhouette_score(X_pca, kmeans.labels_)
-    print(f"Silhouette Score: {silhouette_avg}")
+    # Evaluate the model on the test set
+    y_pred = knn.predict(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
+    print(f"Accuracy: {accuracy:.2f}")
+    print("Classification Report:")
+    print(classification_report(y_test, y_pred))
+    print("Confusion Matrix:")
+    print(confusion_matrix(y_test, y_pred))
 
-    return kmeans, scaler, imputer, pca
+    return knn, scaler, imputer
 
 # Function to load and preprocess the data
 def get_clean_data():
@@ -52,15 +53,15 @@ def main():
     # Load the cleaned dataset
     data = get_clean_data()
 
-    # Train the K-means model and get the trained scaler, imputer, and PCA
-    kmeans_model, scaler, imputer, pca = create_kmeans_model(data)
+    # Train the KNN model and get the trained scaler and imputer
+    knn_model, scaler, imputer = create_knn_model(data)
 
     # Ensure the directory 'model/' exists
     os.makedirs('model', exist_ok=True)
 
-    # Save the trained K-means model to a file for later use
-    with open('model/kmeans_model.pkl', 'wb') as f:
-        pickle.dump(kmeans_model, f)
+    # Save the trained KNN model to a file for later use
+    with open('model/knn_model.pkl', 'wb') as f:
+        pickle.dump(knn_model, f)
 
     # Save the scaler to a file for consistent scaling during predictions
     with open('model/scaler.pkl', 'wb') as f:
@@ -69,10 +70,6 @@ def main():
     # Save the imputer to handle missing values during predictions
     with open('model/imputer.pkl', 'wb') as f:
         pickle.dump(imputer, f)
-
-    # Save the PCA transformer for consistent dimensionality reduction
-    with open('model/pca.pkl', 'wb') as f:
-        pickle.dump(pca, f)
 
 if __name__ == '__main__':
     main()
